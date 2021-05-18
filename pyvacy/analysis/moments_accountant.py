@@ -1,5 +1,5 @@
 import math
-from pyvacy.analysis.rdp_accountant import compute_rdp, get_privacy_spent
+from pyvacy.pyvacy.analysis.rdp_accountant import compute_rdp, get_privacy_spent
 
 def epsilon(N, batch_size, noise_multiplier, epochs, delta=1e-5):
     """Calculates epsilon for stochastic gradient descent.

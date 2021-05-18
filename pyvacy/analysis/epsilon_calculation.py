@@ -1,8 +1,33 @@
-import math
 from .rdp_accountant import compute_rdp, get_privacy_spent
 
 
-def epsilon(N, batch_size, noise_multiplier, iterations, delta=1e-5):
+def comp_epsilon(qs, sigmas, iterations, delta):
+    optimal_order = _ternary_search(
+        lambda order: _apply_analysis(qs, sigmas, iterations, delta, [order]), 1, 512, 72)
+
+    return _apply_analysis(qs, sigmas, iterations, delta, [optimal_order])
+
+
+def _apply_analysis(qs, sigmas, iterations, delta, orders):
+    """
+    Compute the overall privacy cost
+    :param qs a list of sample ratios
+    :param sigmas a list of noise scale
+    :param iterations
+    :param delta
+    :param orders a list of order
+    """
+
+    total_rdp = 0
+    for idx in range(len(qs)):
+        total_rdp += compute_rdp(qs[idx], sigmas[idx], iterations[idx], orders)
+
+    epsilon, _, _ = get_privacy_spent(orders, total_rdp, target_delta=delta)
+
+    return epsilon
+
+
+def epsilon(N, batch_size, noise_multiplier, iterations, delta=1e-5, gaussian_std=[]):
     """Calculates epsilon for stochastic gradient descent.
 
     Args:
@@ -18,8 +43,25 @@ def epsilon(N, batch_size, noise_multiplier, iterations, delta=1e-5):
         >>> epsilon(10000, 256, 0.3, 100, 1e-5)
     """
     q = batch_size / N
-    optimal_order = _ternary_search(lambda order: _apply_dp_sgd_analysis(q, noise_multiplier, iterations, [order], delta), 1, 512, 72)
-    return _apply_dp_sgd_analysis(q, noise_multiplier, iterations, [optimal_order], delta)
+    optimal_order = _ternary_search(lambda order: _apply_kamino_analysis(q, noise_multiplier, iterations, [order], delta), 1, 512, 72)
+    return _apply_kamino_analysis(q, noise_multiplier, iterations, [optimal_order], delta, gaussian_std)
+
+
+def _apply_kamino_analysis(q, sigma, iterations, orders, delta, gaussian_std=[]):
+    """Calculates epsilon for kamino
+    Args:
+        q (float): Sampling probability, generally batch_size / number_of_samples
+        sigma (float): Noise multiplier
+        gaussian_sigma(list): Std dev. for gaussian noise additions
+        iterations (float): Number of iterations mechanism is applied
+        orders (list(float)): Orders to try for finding optimal epsilon
+        delta (float): Target delta
+    """
+    total_rdp = compute_rdp(q, sigma, iterations, orders)
+    for gaussian_sigma in gaussian_std:
+        total_rdp += compute_rdp(1, gaussian_sigma, 1, orders)
+    eps, _, opt_order = get_privacy_spent(orders, total_rdp, target_delta=delta)
+    return eps
 
 
 def _apply_dp_sgd_analysis(q, sigma, iterations, orders, delta):

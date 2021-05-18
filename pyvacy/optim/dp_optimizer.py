@@ -24,14 +24,14 @@ def make_optimizer_class(cls):
             total_norm = 0.
             for group in self.param_groups:
                 for param in group['params']:
-                    if param.requires_grad:
+                    if param.requires_grad and param.grad is not None:
                         total_norm += param.grad.data.norm(2).item() ** 2.
             total_norm = total_norm ** .5
             clip_coef = min(self.l2_norm_clip / (total_norm + 1e-6), 1.)
 
             for group in self.param_groups:
                 for param, accum_grad in zip(group['params'], group['accum_grads']):
-                    if param.requires_grad:
+                    if param.requires_grad and param.grad is not None:
                         accum_grad.add_(param.grad.data.mul(clip_coef))
 
         def zero_grad(self):
@@ -44,6 +44,10 @@ def make_optimizer_class(cls):
             for group in self.param_groups:
                 for param, accum_grad in zip(group['params'], group['accum_grads']):
                     if param.requires_grad:
+
+                        if param.grad is None:
+                            continue
+
                         param.grad.data = accum_grad.clone()
                         param.grad.data.add_(self.l2_norm_clip * self.noise_multiplier * torch.randn_like(param.grad.data))
                         param.grad.data.mul_(self.microbatch_size / self.minibatch_size)
